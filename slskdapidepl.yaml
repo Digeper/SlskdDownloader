@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slskdapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slskdapi
+  template:
+    metadata:
+      labels:
+        app: slskdapi
+    spec:
+      containers:
+        - name: node-app
+          image: muzika/slskdapi:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
