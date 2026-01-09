@@ -4,7 +4,7 @@ package org.muzika.slskddownload.kafkaMassages;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.muzika.Song;
+import org.muzika.slskddownload.lib.Song;
 
 import java.util.UUID;
 

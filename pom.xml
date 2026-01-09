@@ -21,8 +21,9 @@
         <java.version>17</java.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <jib-maven-plugin.version>3.4.0</jib-maven-plugin.version>
-        <docker.image.name>bandcampapi</docker.image.name>
+        <docker.image.name>slskd-download</docker.image.name>
         <docker.image.tag>0.0.1</docker.image.tag>
+        <docker.image.registry>${ACR_NAME}.azurecr.io</docker.image.registry>
     </properties>
     <dependencies>
 
@@ -46,12 +47,6 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.15.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.muzika</groupId>
-            <artifactId>muzikaLib</artifactId>
-            <version>1.0-SNAPSHOT</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -123,23 +118,32 @@
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>3.4.6</version>
+                <version>${jib-maven-plugin.version}</version>
                 <configuration>
                     <from>
                         <image>eclipse-temurin:17-jre</image>
                     </from>
                     <to>
-                        <image>muzika/slskdapi:1.0</image>
+                        <image>${docker.image.registry}/muzika/${docker.image.name}:${docker.image.tag}</image>
+                        <tags>
+                            <tag>latest</tag>
+                            <tag>${project.version}</tag>
+                        </tags>
                     </to>
                     <container>
                         <ports>
                             <port>8080</port>
                         </ports>
-
                         <environment>
                             <SPRING_PROFILES_ACTIVE>k8s</SPRING_PROFILES_ACTIVE>
                         </environment>
                         <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+                        <jvmFlags>
+                            <jvmFlag>-Xms256m</jvmFlag>
+                            <jvmFlag>-Xmx512m</jvmFlag>
+                            <jvmFlag>-XX:+UseG1GC</jvmFlag>
+                            <jvmFlag>-XX:+UseContainerSupport</jvmFlag>
+                        </jvmFlags>
                     </container>
                 </configuration>
                 <executions>

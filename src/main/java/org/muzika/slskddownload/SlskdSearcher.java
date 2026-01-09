@@ -3,8 +3,9 @@ package org.muzika.slskddownload;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
-import org.muzika.*;
+import org.muzika.slskddownload.lib.*;
 import org.muzika.slskddownload.services.SlskdSearchIdController;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URLDecoder;
@@ -18,15 +19,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SlskdSearcher extends WebSearcher {
 
     private SlskdSearchIdController searchIdController;
-    public SlskdSearcher(SlskdSearchIdController searchIdController) {
-       super("http://localhost:5030/");
-
+    private String slskdApiUrl;
+    
+    public SlskdSearcher(SlskdSearchIdController searchIdController, 
+                         @Value("${slskd.api.url:http://localhost:5030}") String slskdApiUrl) {
+       // Ensure URL ends with /
+       String baseUrl = slskdApiUrl.endsWith("/") ? slskdApiUrl : slskdApiUrl + "/";
+       super(baseUrl);
+       
+       this.slskdApiUrl = baseUrl;
        this.headers = new LinkedHashMap<>();
        headers.put("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0");
        headers.put("Accept-Language","en-US,en;q=0.5");
-       headers.put("Origin","http://localhost:5030");
+       headers.put("Origin", baseUrl);
        this.searchIdController = searchIdController;
-
+       
+       log.info("SlskdSearcher initialized with API URL: {}", baseUrl);
    }
     private String aoth2;
 
@@ -110,7 +118,7 @@ public class SlskdSearcher extends WebSearcher {
 
         waitFunctionPointer pointer1 = this::waitForDownload;
          try {
-             waitFor(pointer1,10,5000,"api/v0/transfers/downloads" ,new String[] {song.username,song.fileName});
+             waitFor(pointer1,20,5000,"api/v0/transfers/downloads" ,new String[] {song.username,song.fileName});
          } catch (JsonProcessingException e) {
              throw new RuntimeException(e);
          }

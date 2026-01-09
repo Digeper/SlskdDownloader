@@ -1,0 +1,94 @@
+# Deployment for SlskdDownload service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slskd-download
+  namespace: muzika
+  labels:
+    app: slskd-download
+    app.kubernetes.io/name: slskd-download
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: muzika-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slskd-download
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: slskd-download
+        app.kubernetes.io/name: slskd-download
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: muzika-platform
+    spec:
+      serviceAccountName: slskd-download-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: slskd-download
+          image: ${ACR_NAME}.azurecr.io/muzika/slskd-download:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: slskd-download-config
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+---
+# ServiceAccount for SlskdDownload
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: slskd-download-sa
+  namespace: muzika
+  labels:
+    app: slskd-download
+    app.kubernetes.io/name: slskd-download
+    app.kubernetes.io/part-of: muzika-platform

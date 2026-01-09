@@ -1,0 +1,20 @@
+# Service for SlskdDownload
+apiVersion: v1
+kind: Service
+metadata:
+  name: slskd-download
+  namespace: muzika
+  labels:
+    app: slskd-download
+    app.kubernetes.io/name: slskd-download
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: muzika-platform
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: slskd-download
