@@ -54,26 +54,35 @@ spec:
               memory: "512Mi"
               cpu: "500m"
           livenessProbe:
-            tcpSocket:
-              port: 8080
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - ps aux | grep -v grep | grep java || exit 1
             initialDelaySeconds: 60
-            periodSeconds: 10
+            periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
-            tcpSocket:
-              port: 8080
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - ps aux | grep -v grep | grep java || exit 1
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           startupProbe:
-            tcpSocket:
-              port: 8080
-            initialDelaySeconds: 10
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - ps aux | grep -v grep | grep java || exit 1
+            initialDelaySeconds: 15
             periodSeconds: 5
             timeoutSeconds: 3
-            failureThreshold: 30
+            failureThreshold: 40
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
