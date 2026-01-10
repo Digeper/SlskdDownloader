@@ -24,9 +24,9 @@ public class SlskdSearcher extends WebSearcher {
     public SlskdSearcher(SlskdSearchIdController searchIdController, 
                          @Value("${slskd.api.url:http://localhost:5030}") String slskdApiUrl) {
        // Ensure URL ends with /
-       String baseUrl = slskdApiUrl.endsWith("/") ? slskdApiUrl : slskdApiUrl + "/";
-       super(baseUrl);
+       super(slskdApiUrl.endsWith("/") ? slskdApiUrl : slskdApiUrl + "/");
        
+       String baseUrl = slskdApiUrl.endsWith("/") ? slskdApiUrl : slskdApiUrl + "/";
        this.slskdApiUrl = baseUrl;
        this.headers = new LinkedHashMap<>();
        headers.put("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0");

@@ -33,14 +33,14 @@ public class SlskdSearchResponse implements Comparable<SlskdSearchResponse> {
         return Long.compare(this.uploadSpeed,o.uploadSpeed);
     }
     public long getLength() {
-        return files.getFirst().size;
+        return files.get(0).size;
     }
     public String getFilePath() {
-        return files.getFirst().filename;
+        return files.get(0).filename;
     }
 
     public String getFilePathClean(){
-        String filename = this.files.getFirst().filename;
+        String filename = this.files.get(0).filename;
         String[] paths =  filename.split("\\\\");
         return paths[paths.length-2]+"/"+paths[paths.length-1];
 
