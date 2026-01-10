@@ -186,7 +186,6 @@ jobs:
         working-directory: k8s
         run: |
           kubectl apply -f namespace.yaml
-          kubectl apply -f serviceaccount.yaml
           kubectl apply -f configmap.yaml
           kubectl apply -f deployment.yaml
           kubectl apply -f service.yaml
