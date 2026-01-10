@@ -185,15 +185,65 @@ jobs:
       - name: Deploy to AKS
         working-directory: k8s
         run: |
+          # Apply namespace first
           kubectl apply -f namespace.yaml
+          
+          # Apply ServiceAccount first (if it exists in deployment.yaml, extract it)
+          # Use kubectl to split multi-document YAML and apply ServiceAccount first
           kubectl apply -f configmap.yaml
+          
+          # Apply deployment.yaml (contains both Deployment and ServiceAccount)
+          # kubectl apply handles multiple resources in one file automatically
           kubectl apply -f deployment.yaml
+          
           kubectl apply -f service.yaml
+
+      - name: Check initial pod status
+        run: |
+          echo "Checking initial pod status after deployment..."
+          sleep 10
+          echo "=== Deployment Status ==="
+          kubectl get deployment slskd-download -n muzika || true
+          echo ""
+          echo "=== Pod Status ==="
+          kubectl get pods -n muzika -l app=slskd-download -o wide || true
+          echo ""
+          echo "=== ServiceAccount Status ==="
+          kubectl get serviceaccount slskd-download-sa -n muzika || true
 
       - name: Wait for deployment to be ready
         run: |
           echo "Waiting for SlskdDownload deployment to be ready..."
+          set +e
           kubectl rollout status deployment/slskd-download -n muzika --timeout=300s
+          ROLLOUT_STATUS=$?
+          set -e
+          
+          if [ $ROLLOUT_STATUS -ne 0 ]; then
+            echo "❌ Deployment rollout failed or timed out. Gathering diagnostics..."
+            echo ""
+            echo "=== Deployment Details ==="
+            kubectl describe deployment slskd-download -n muzika || true
+            echo ""
+            echo "=== Pod Status (Detailed) ==="
+            kubectl get pods -n muzika -l app=slskd-download -o wide || true
+            echo ""
+            echo "=== Pod Details ==="
+            for pod in $(kubectl get pods -n muzika -l app=slskd-download -o jsonpath='{.items[*].metadata.name}'); do
+              echo "--- Pod: $pod ---"
+              kubectl describe pod $pod -n muzika || true
+              echo ""
+              echo "--- Pod Logs: $pod ---"
+              kubectl logs $pod -n muzika --tail=100 || true
+              echo ""
+            done
+            echo ""
+            echo "=== Recent Events ==="
+            kubectl get events -n muzika --sort-by='.lastTimestamp' | grep -E "(slskd-download|Warning|Error)" | tail -30 || true
+            exit 1
+          fi
+          
+          echo "✓ Deployment rolled out successfully!"
 
       - name: Get deployment status
         run: |
