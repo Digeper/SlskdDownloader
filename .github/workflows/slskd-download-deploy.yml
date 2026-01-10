@@ -1,0 +1,235 @@
+# GitHub Actions CI/CD Pipeline for SlskdDownload Service
+name: SlskdDownload CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'SlskdDownload/**'
+      - '.github/workflows/slskd-download-deploy.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'SlskdDownload/**'
+      - '.github/workflows/slskd-download-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  JAVA_VERSION: '17'
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
+  AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
+  IMAGE_NAME: muzika/slskd-download
+  SLSKD_API_URL: "http://4.232.217.194:5030"  # slskd daemon running on ACI
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Generate version
+        id: version
+        run: |
+          cd SlskdDownload
+          VERSION=$(grep -o '<version>[^<]*</version>' pom.xml | sed 's/<version>\(.*\)<\/version>/\1/' | sed -n '2p' | tr -d '[:space:]' || echo "0.0.1")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          IMAGE_TAG="${VERSION}-${SHORT_SHA}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build all modules (multi-module project)
+        run: mvn clean install -DskipTests -B
+
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Validate ACR configuration
+        run: |
+          [ -n "${{ secrets.ACR_NAME }}" ] || (echo "ERROR: ACR_NAME secret is not set" && exit 1)
+          [ -n "${{ secrets.ACR_USERNAME }}" ] || (echo "ERROR: ACR_USERNAME secret is not set" && exit 1)
+          [ -n "${{ secrets.ACR_PASSWORD }}" ] || (echo "ERROR: ACR_PASSWORD secret is not set" && exit 1)
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_NAME }}.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and Push Docker image for SlskdDownload module
+        env:
+          ACR_NAME: ${{ secrets.ACR_NAME }}
+        run: |
+          # Build Docker image for SlskdDownload module only using -pl flag
+          mvn compile jib:build \
+            -pl SlskdDownload \
+            -Djib.to.image=${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
+            -Djib.to.tags=${{ needs.build.outputs.image_tag }},latest,${{ github.sha }} \
+            -Djib.to.auth.username=${{ secrets.ACR_USERNAME }} \
+            -Djib.to.auth.password=${{ secrets.ACR_PASSWORD }} \
+            -B
+
+      - name: Output image details
+        run: |
+          echo "### Docker Image Built" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** ${{ secrets.ACR_NAME }}.azurecr.io" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ needs.build.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    needs: [build, docker]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: 
+      name: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Validate required secrets
+        run: |
+          [ -n "${{ secrets.AKS_CLUSTER_NAME }}" ] || (echo "ERROR: AKS_CLUSTER_NAME secret is not set" && exit 1)
+          [ -n "${{ secrets.AKS_RESOURCE_GROUP }}" ] || (echo "ERROR: AKS_RESOURCE_GROUP secret is not set" && exit 1)
+          [ -n "${{ secrets.ACR_NAME }}" ] || (echo "ERROR: ACR_NAME secret is not set" && exit 1)
+
+      - name: Install kubectl
+        run: |
+          az aks install-cli
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AKS_CLUSTER_NAME }}" \
+            --overwrite-existing
+
+      - name: Update ConfigMap with slskd API URL
+        working-directory: SlskdDownload/k8s
+        run: |
+          # Update ConfigMap with the slskd daemon URL
+          kubectl create configmap slskd-download-config \
+            --from-literal=SPRING_PROFILES_ACTIVE=k8s \
+            --from-literal=SLSKD_API_URL="${{ env.SLSKD_API_URL }}" \
+            --from-literal=KAFKA_BOOTSTRAP_SERVERS=kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092 \
+            --from-literal=LOGGING_LEVEL_ROOT=INFO \
+            --from-literal=LOGGING_LEVEL_ORG_MUZIKA=INFO \
+            --namespace muzika \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "✓ ConfigMap updated with SLSKD_API_URL=${{ env.SLSKD_API_URL }}"
+
+      - name: Replace image in deployment YAML
+        working-directory: SlskdDownload/k8s
+        run: |
+          # Replace ACR name and image tag in deployment.yaml
+          sed -i "s|\${ACR_NAME}|${{ secrets.ACR_NAME }}|g" deployment.yaml
+          sed -i "s|:latest|:${{ needs.build.outputs.image_tag }}|g" deployment.yaml
+
+      - name: Deploy to AKS
+        working-directory: SlskdDownload/k8s
+        run: |
+          kubectl apply -f namespace.yaml
+          kubectl apply -f serviceaccount.yaml
+          kubectl apply -f configmap.yaml
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for SlskdDownload deployment to be ready..."
+          kubectl rollout status deployment/slskd-download -n muzika --timeout=300s
+
+      - name: Get deployment status
+        run: |
+          echo "### Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment:** slskd-download" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** muzika" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**slskd API URL:** ${{ env.SLSKD_API_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Get pod status
+          kubectl get pods -n muzika -l app=slskd-download -o wide || true
+          
+          echo ""
+          echo "✓ SlskdDownload service deployed successfully!"
+          echo "Connected to slskd daemon at: ${{ env.SLSKD_API_URL }}"
+
+      - name: Cleanup on failure
+        if: failure()
+        run: |
+          echo "Deployment failed. Checking logs..."
+          kubectl logs -n muzika -l app=slskd-download --tail=50 || true
+          
+          echo ""
+          echo "Pod status:"
+          kubectl get pods -n muzika -l app=slskd-download || true
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [build, docker, deploy]
+    if: always()
+    
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ${{ needs.docker.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy | ${{ needs.deploy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**slskd Daemon:** ${{ env.SLSKD_API_URL }}" >> $GITHUB_STEP_SUMMARY
