@@ -1,0 +1,81 @@
+apiVersion: 2019-12-01
+location: italynorth
+name: digeper
+properties:
+  containers:
+  - name: slskd-daemon
+    properties:
+      image: digeper.azurecr.io/muzika/slskd-daemon:latest
+      resources:
+        requests:
+          cpu: 2
+          memoryInGb: 4
+      ports:
+      - port: 5030
+        protocol: TCP
+      - port: 5031
+        protocol: TCP
+      - port: 50300
+        protocol: TCP
+      environmentVariables:
+      - name: APP_DIR
+        value: /app
+      - name: SLSKD_DOWNLOADS_DIR
+        value: /rw/downloads
+      - name: SLSKD_INCOMPLETE_DIR
+        value: /rw/incomplete
+      - name: SLSKD_REMOTE_CONFIGURATION
+        value: "true"
+      - name: SLSKD_SLSK_USERNAME
+        value: "${SLSKD_SLSK_USERNAME}"
+      - name: SLSKD_SLSK_PASSWORD
+        value: "${SLSKD_SLSK_PASSWORD}"
+      - name: AZURE_STORAGE_ACCOUNT_NAME
+        value: "digeper"
+      - name: AZURE_STORAGE_ACCOUNT_KEY
+        value: "${AZURE_STORAGE_ACCOUNT_KEY}"
+      - name: AZURE_FILE_MOUNT_DOWNLOADS
+        value: /mnt/azfiles/downloads
+      - name: AZURE_FILE_MOUNT_INCOMPLETE
+        value: /mnt/azfiles/incomplete
+      - name: AZURE_FILE_MOUNT_DATABASE
+        value: /mnt/azfiles/database
+      volumeMounts:
+      - name: downloads
+        mountPath: /mnt/azfiles/downloads
+      - name: incomplete
+        mountPath: /mnt/azfiles/incomplete
+      - name: database
+        mountPath: /mnt/azfiles/database
+  osType: Linux
+  restartPolicy: Always
+  ipAddress:
+    type: Public
+    ports:
+    - protocol: TCP
+      port: 5030
+    - protocol: TCP
+      port: 5031
+    - protocol: TCP
+      port: 50300
+    dnsNameLabel: ""
+  imageRegistryCredentials:
+  - server: digeper.azurecr.io
+    username: digeper
+    password: "${ACR_PASSWORD}"
+  volumes:
+  - name: downloads
+    azureFile:
+      shareName: slskd-downloads
+      storageAccountName: digeper
+      storageAccountKey: "${AZURE_STORAGE_ACCOUNT_KEY}"
+  - name: incomplete
+    azureFile:
+      shareName: slskd-incomplete
+      storageAccountName: digeper
+      storageAccountKey: "${AZURE_STORAGE_ACCOUNT_KEY}"
+  - name: database
+    azureFile:
+      shareName: slskd-database
+      storageAccountName: digeper
+      storageAccountKey: "${AZURE_STORAGE_ACCOUNT_KEY}"
