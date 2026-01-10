@@ -28,17 +28,27 @@ mount_blob() {
     
     echo "Mounting $container_name to $mount_point..."
     
-    # Create connection string file for blobfuse
-    echo "accountName $STORAGE_ACCOUNT_NAME" > /tmp/blobfuse_${container_name}.cfg
-    echo "accountKey $STORAGE_ACCOUNT_KEY" >> /tmp/blobfuse_${container_name}.cfg
-    echo "containerName $container_name" >> /tmp/blobfuse_${container_name}.cfg
+    # Create YAML configuration file for blobfuse2
+    cat > /tmp/blobfuse2_${container_name}.yaml <<EOF
+logging:
+  type: syslog
+  level: log_debug
+
+file_cache:
+  path: ${TMP_DIR}/${container_name}
+  timeout-secs: 120
+
+azstorage:
+  account-name: ${STORAGE_ACCOUNT_NAME}
+  account-key: ${STORAGE_ACCOUNT_KEY}
+  container: ${container_name}
+  mode: key
+EOF
     
-    # Mount blobfuse
-    blobfuse "$mount_point" \
-        --tmp-path="${TMP_DIR}/${container_name}" \
-        --config-file=/tmp/blobfuse_${container_name}.cfg \
-        --file-cache-timeout-in-seconds=120 \
-        -o allow_other || {
+    # Mount blobfuse2
+    blobfuse2 mount "$mount_point" \
+        --config-file=/tmp/blobfuse2_${container_name}.yaml \
+        --allow-other || {
         echo "ERROR: Failed to mount $container_name"
         exit 1
     }
@@ -47,7 +57,7 @@ mount_blob() {
 }
 
 # Mount all blob containers
-echo "Starting blobfuse mounts..."
+echo "Starting blobfuse2 mounts..."
 mount_blob "$CONTAINER_DOWNLOADS" "$MOUNT_DOWNLOADS"
 mount_blob "$CONTAINER_INCOMPLETE" "$MOUNT_INCOMPLETE"
 mount_blob "$CONTAINER_DATABASE" "$MOUNT_DATABASE"
