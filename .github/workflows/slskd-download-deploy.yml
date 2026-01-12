@@ -28,7 +28,7 @@ env:
   AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
   AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
   IMAGE_NAME: muzika/slskd-download
-  SLSKD_API_URL: "http://4.232.217.194:5030"  # slskd daemon running on ACI
+  SLSKD_API_URL: "http://20.215.135.129:5030"  # slskd daemon running on ACI
 
 jobs:
   build:
