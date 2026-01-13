@@ -21,6 +21,8 @@
         <java.version>17</java.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
         <jib-maven-plugin.version>3.4.0</jib-maven-plugin.version>
+        <!-- Skip Docker build by default - set skip.docker.build=false to enable -->
+        <skip.docker.build>true</skip.docker.build>
         <docker.image.name>slskd-download</docker.image.name>
         <docker.image.tag>0.0.1</docker.image.tag>
         <docker.image.registry>${ACR_NAME}.azurecr.io</docker.image.registry>
@@ -88,6 +90,11 @@
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.6.0</version>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -103,6 +110,21 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.42</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -120,6 +142,7 @@
                 <artifactId>jib-maven-plugin</artifactId>
                 <version>${jib-maven-plugin.version}</version>
                 <configuration>
+                    <skip>${skip.docker.build}</skip>
                     <from>
                         <image>eclipse-temurin:17-jre</image>
                     </from>
@@ -146,14 +169,29 @@
                         </jvmFlags>
                     </container>
                 </configuration>
+                <!-- Docker build is disabled by default. To build Docker image:
+                     1. Set environment variable: export ACR_NAME=your-registry-name
+                     2. Run: mvn jib:dockerBuild
+                     Or set skip.docker.build=false to enable automatic build during package phase -->
+            </plugin>
+            <!-- SpringDoc OpenAPI Maven Plugin for generating openapi.yaml -->
+            <plugin>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-maven-plugin</artifactId>
+                <version>1.4</version>
                 <executions>
-                    <!-- Build Docker image automatically during package phase -->
                     <execution>
-                        <id>docker-build</id>
-                        <phase>package</phase>
+                        <id>generate-api-docs</id>
+                        <phase>process-classes</phase>
                         <goals>
-                            <goal>dockerBuild</goal>
+                            <goal>generate</goal>
                         </goals>
+                        <configuration>
+                            <apiDocsUrl>http://localhost:${server.port}/api-docs</apiDocsUrl>
+                            <outputFileName>openapi.yaml</outputFileName>
+                            <outputDir>${project.basedir}</outputDir>
+                            <skip>true</skip>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
