@@ -61,7 +61,7 @@ jobs:
           echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
       - name: Build SlskdDownload
-        run: mvn clean package -DskipTests -B
+        run: mvn clean package -DskipTests -Dskip.docker.build=true -B
 
   docker:
     name: Build & Push Docker Image
@@ -98,6 +98,7 @@ jobs:
           ACR_NAME: ${{ secrets.ACR_NAME }}
         run: |
           mvn compile jib:build \
+            -Dskip.docker.build=false \
             -Djib.to.image=${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
             -Djib.to.tags=${{ needs.build.outputs.image_tag }},latest,${{ github.sha }} \
             -Djib.to.auth.username=${{ secrets.ACR_USERNAME }} \

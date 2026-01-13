@@ -1,10 +1,11 @@
 package org.muzika.slskddownload;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
 import org.muzika.slskddownload.lib.*;
 import org.muzika.slskddownload.services.SlskdSearchIdController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -14,10 +15,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Slf4j
 @Service
 public class SlskdSearcher extends WebSearcher {
 
+    private static final Logger logger = LoggerFactory.getLogger(SlskdSearcher.class);
     private SlskdSearchIdController searchIdController;
     private String slskdApiUrl;
     
@@ -34,7 +35,7 @@ public class SlskdSearcher extends WebSearcher {
        headers.put("Origin", baseUrl);
        this.searchIdController = searchIdController;
        
-       log.info("SlskdSearcher initialized with API URL: {}", baseUrl);
+       logger.info("SlskdSearcher initialized with API URL: {}", baseUrl);
    }
     private String aoth2;
 
@@ -87,7 +88,7 @@ public class SlskdSearcher extends WebSearcher {
            response = Arrays.stream(response).filter(a -> a.fileCount > 0 && a.queueLength==0).toArray(SlskdSearchResponse[]::new);
            Arrays.sort(response);
            if(response.length==0){
-               log.error("not-found");
+               logger.error("not-found");
            }
            return response[response.length-1];
 
