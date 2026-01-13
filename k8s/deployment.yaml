@@ -48,10 +48,10 @@ spec:
               value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
           resources:
             requests:
-              memory: "128Mi"
+              memory: "192Mi"
               cpu: "50m"
             limits:
-              memory: "256Mi"
+              memory: "384Mi"
               cpu: "200m"
           livenessProbe:
             httpGet:
